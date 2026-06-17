@@ -1,0 +1,16 @@
+jar { enabled = true }
+
+dependencies {
+    implementation project(':core')
+
+    implementation 'org.slf4j:slf4j-api:2.0.16'
+
+    compileOnly 'org.projectlombok:lombok:1.18.36'
+    annotationProcessor 'org.projectlombok:lombok:1.18.36'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.mockito:mockito-core'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test { useJUnitPlatform() }

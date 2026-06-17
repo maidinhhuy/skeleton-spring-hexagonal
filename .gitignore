@@ -1,0 +1,17 @@
+.gradle/
+build/
+*.class
+*.jar
+!gradle-wrapper.jar
+
+.idea/
+*.iml
+*.iws
+*.ipr
+.DS_Store
+
+.env
+.env.*
+!.env.example
+
+modules/infrastructure/src/main/java/com/example/app/jooq/

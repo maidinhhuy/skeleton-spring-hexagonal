@@ -1,0 +1,100 @@
+plugins {
+    id 'org.springframework.boot' version '3.4.1'
+    id 'io.spring.dependency-management' version '1.1.7'
+    id 'nu.studer.jooq' version '9.0'
+    id 'org.flywaydb.flyway' version '11.3.0'
+}
+
+bootJar {
+    enabled = true
+    archiveFileName = 'app.jar'
+}
+
+jar { enabled = false }
+
+dependencies {
+    // own modules
+    implementation project(':core')
+    implementation project(':application')
+
+    // Spring Boot
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-mail'
+
+    // jOOQ
+    implementation 'org.springframework.boot:spring-boot-starter-jooq'
+    jooqGenerator 'org.postgresql:postgresql'
+
+    // Flyway
+    implementation 'org.flywaydb:flyway-core'
+    implementation 'org.flywaydb:flyway-database-postgresql'
+
+    // JWT
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
+
+    // Postgres
+    runtimeOnly 'org.postgresql:postgresql'
+
+    // Lombok
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    // Test
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+}
+
+def dbUrl      = System.getenv('DB_URL')      ?: 'jdbc:postgresql://localhost:5432/appdb'
+def dbUser     = System.getenv('DB_USER')     ?: 'appuser'
+def dbPassword = System.getenv('DB_PASSWORD') ?: 'apppassword'
+
+flyway {
+    url      = dbUrl
+    user     = dbUser
+    password = dbPassword
+    locations = ['classpath:db/migration']
+}
+
+jooq {
+    version = '3.19.18'
+    configurations {
+        main {
+            generationTool {
+                jdbc {
+                    driver   = 'org.postgresql.Driver'
+                    url      = dbUrl
+                    user     = dbUser
+                    password = dbPassword
+                }
+                generator {
+                    name = 'org.jooq.codegen.DefaultGenerator'
+                    database {
+                        name    = 'org.jooq.meta.postgres.PostgresDatabase'
+                        inputSchema = 'public'
+                        excludes = 'flyway_schema_history'
+                    }
+                    generate {
+                        daos     = false
+                        records  = true
+                        pojos    = false
+                    }
+                    target {
+                        packageName = 'com.example.app.jooq'
+                        directory   = 'src/main/java'
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ensure spotless runs after codegen so generated files are formatted
+tasks.named('spotlessJava') {
+    dependsOn tasks.named('jooqCodegen')
+}
+
+test { useJUnitPlatform() }

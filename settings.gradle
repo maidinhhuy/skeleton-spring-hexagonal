@@ -1,0 +1,9 @@
+rootProject.name = 'app'
+
+include 'core'
+include 'application'
+include 'infrastructure'
+
+project(':core').projectDir          = file('modules/core')
+project(':application').projectDir   = file('modules/application')
+project(':infrastructure').projectDir = file('modules/infrastructure')
