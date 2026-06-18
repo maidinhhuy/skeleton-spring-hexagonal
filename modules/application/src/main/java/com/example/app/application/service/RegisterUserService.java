@@ -1,6 +1,8 @@
 package com.example.app.application.service;
 
 import com.example.app.domain.entity.User;
+import com.example.app.domain.value.PasswordHash;
+import com.example.app.domain.value.Role;
 import com.example.app.port.bound.RegisterUserCommand;
 import com.example.app.port.bound.UserResponse;
 import com.example.app.port.in.RegisterUserUseCase;
@@ -26,8 +28,8 @@ public class RegisterUserService implements RegisterUserUseCase {
     User user =
         User.builder()
             .email(cmd.email())
-            .passwordHash(passwordHasher.hash(cmd.password()))
-            .role("USER")
+            .passwordHash(new PasswordHash(passwordHasher.hash(cmd.password().value())))
+            .role(Role.USER)
             .build();
 
     User saved = userRepository.save(user);

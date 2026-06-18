@@ -1,3 +1,7 @@
 package com.example.app.port.bound;
 
-public record UserResponse(Long id, String email, String role) {}
+import com.example.app.domain.value.Email;
+import com.example.app.domain.value.Role;
+import com.example.app.domain.value.UserId;
+
+public record UserResponse(UserId id, Email email, Role role) {}
