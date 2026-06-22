@@ -5,9 +5,9 @@
 ```
 .
 ├── modules/
-│   ├── core/           ← domain entities, port interfaces. Pure Java + Lombok, no framework.
-│   ├── application/    ← use case implementations. Pure Java + Lombok + SLF4J, no Spring.
-│   └── infrastructure/ ← Spring Boot, jOOQ, Flyway, JWT, controllers. All framework code.
+│   ├── core/           ← pure Java, no Spring, no Lombok beyond basics
+│   ├── application/    ← @Service classes, @RequiredArgsConstructor, no Spring beans beyond @Service
+│   └── infrastructure/ ← Spring Boot, jOOQ, Flyway, JWT, email, controllers. All framework code.
 ├── docker/
 │   └── docker-compose.yml
 ├── Dockerfile
@@ -24,27 +24,36 @@ infrastructure → application → core
 
 Never import upward (core must not know application/infrastructure).
 
-## Hexagonal Pattern
+## Hexagonal Pattern — `com.example.app`
 
 | Layer | Package | Rule |
 |---|---|---|
-| Port in | `core/port/in/` | Use case interfaces |
-| Port out | `core/port/out/` | Repository & client interfaces (PasswordHasher, TokenProvider, …) |
-| Port bound | `core/port/bound/` | Command / Response records |
-| Domain | `core/domain/entity/`, `core/domain/value/` | Pure Java |
-| Use case | `application/application/service/` | No `@Service`, no Spring |
-| Wiring | `infrastructure/config/UseCaseConfig.java` | `@Bean` factory for all services |
-| Adapter in | `infrastructure/adapter/web/` | Controllers |
-| Adapter out | `infrastructure/adapter/persistence/` | jOOQ repos implementing `port/out/` |
-| Security impl | `infrastructure/security/` | BCryptPasswordHasher, JwtTokenProvider |
+| Domain aggregates | `core/domain/aggregation/` | Aggregate roots (User, …) |
+| Domain entities | `core/domain/entity/` | Sub-entities (auth, email, user) |
+| Domain values | `core/domain/value/` | Value objects (Email, Password, UserId, …) |
+| Domain exceptions | `core/domain/exception/` | Pure Java exceptions |
+| Port in | `core/port/in/auth/`, `core/port/in/user/` | Use case interfaces |
+| Port out | `core/port/out/auth/`, `core/port/out/email/`, `core/port/out/user/` | Repository & client interfaces |
+| Port bound | `core/port/bound/command/` | Command objects (no query/ layer in skeleton) |
+| Use case | `application/application/service/` | `@Service` + `@RequiredArgsConstructor` |
+| Controller | `infrastructure/adapter/controller/` | Spring `@RestController` |
+| Filter | `infrastructure/adapter/filter/` | `JwtAuthenticationFilter` |
+| Request DTOs | `infrastructure/adapter/request/` | HTTP request records |
+| Response DTOs | `infrastructure/adapter/response/` | HTTP response records |
+| Web utilities | `infrastructure/adapter/web/` | `GlobalExceptionHandler`, `dto/` |
+| Auth impl | `infrastructure/infrastructure/auth/` | `BCryptPasswordHasher`, `JwtTokenProvider`, `JwtProperties` |
+| Email impl | `infrastructure/infrastructure/email/` | `ResendEmailClient`, `DevEmailClient` |
+| Persistence | `infrastructure/infrastructure/repository/` | jOOQ repos implementing `port/out/` |
+| jOOQ generated | `infrastructure/infrastructure/jooq/` | Git-ignored; run `make generate` |
+| Spring config | `infrastructure/config/` | `SecurityConfig`, `EmailConfig`, `JooqConfiguration`, `OpenApiConfig`, `GlobalExceptionHandler`, `DataInitializer` |
 
 ## Key Conventions
 
-- Use case services: **no Spring annotations** — plain `@RequiredArgsConstructor` (Lombok)
-- Config values (`@Value`): inject at the `@Bean` method level in `UseCaseConfig`, pass as constructor param
-- Port interfaces for framework concerns: `PasswordHasher`, `TokenProvider` live in `core/port/out/` to keep `application` free of Spring deps
-- jOOQ generated code: `infrastructure/jooq/` (git-ignored, regenerated via `make generate`)
-- `infrastructure` must declare both `:core` and `:application` in its deps (Gradle doesn't expose transitive project deps)
+- Use case services: `@Service` + `@RequiredArgsConstructor` (Lombok). Spring component scan handles wiring automatically — **no `UseCaseConfig.java`**.
+- Auth/password/token implementations live in `infrastructure/auth/`, not `security/`.
+- `infrastructure` must declare both `:core` and `:application` in its Gradle deps (transitive project deps are not exposed automatically).
+- jOOQ generated code: `infrastructure/build/generated-src/jooq/` (git-ignored, regenerated via `make generate`).
+- Config values (`@Value`): inject at the `@Bean` or `@ConfigurationProperties` level in `config/`, pass as constructor params.
 
 ## How to Start a New Project from This Skeleton
 
