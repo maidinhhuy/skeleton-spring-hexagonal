@@ -1,8 +1,18 @@
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'org.flywaydb:flyway-core:11.3.0'
+        classpath 'org.flywaydb:flyway-database-postgresql:11.3.0'
+        classpath 'org.postgresql:postgresql:42.7.3'
+    }
+}
+
 plugins {
     id 'org.springframework.boot' version '3.4.1'
     id 'io.spring.dependency-management' version '1.1.7'
-    id 'nu.studer.jooq' version '9.0'
-    id 'org.flywaydb.flyway' version '11.3.0'
+    id 'org.jooq.jooq-codegen-gradle' version '3.19.18'
 }
 
 bootJar {
@@ -25,7 +35,7 @@ dependencies {
 
     // jOOQ
     implementation 'org.springframework.boot:spring-boot-starter-jooq'
-    jooqGenerator 'org.postgresql:postgresql'
+    jooqCodegen 'org.postgresql:postgresql:42.7.3'
 
     // Flyway
     implementation 'org.flywaydb:flyway-core'
@@ -35,6 +45,9 @@ dependencies {
     implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
+
+    // OpenAPI / Swagger UI
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.3'
 
     // Postgres
     runtimeOnly 'org.postgresql:postgresql'
@@ -52,47 +65,78 @@ def dbUrl      = System.getenv('DB_URL')      ?: 'jdbc:postgresql://localhost:54
 def dbUser     = System.getenv('DB_USER')     ?: 'appuser'
 def dbPassword = System.getenv('DB_PASSWORD') ?: 'apppassword'
 
-flyway {
-    url      = dbUrl
-    user     = dbUser
-    password = dbPassword
-    locations = ['classpath:db/migration']
+tasks.register('flywayMigrate') {
+    group = 'flyway'
+    description = 'Runs Flyway database migrations'
+    doLast {
+        def flyway = org.flywaydb.core.Flyway.configure()
+            .dataSource(dbUrl, dbUser, dbPassword)
+            .locations("filesystem:${projectDir}/src/main/resources/db/migration")
+            .load()
+        flyway.migrate()
+    }
 }
 
 jooq {
-    version = '3.19.18'
-    configurations {
-        main {
-            generationTool {
-                jdbc {
-                    driver   = 'org.postgresql.Driver'
-                    url      = dbUrl
-                    user     = dbUser
-                    password = dbPassword
-                }
-                generator {
-                    name = 'org.jooq.codegen.DefaultGenerator'
-                    database {
-                        name    = 'org.jooq.meta.postgres.PostgresDatabase'
-                        inputSchema = 'public'
-                        excludes = 'flyway_schema_history'
-                    }
-                    generate {
-                        daos     = false
-                        records  = true
-                        pojos    = false
-                    }
-                    target {
-                        packageName = 'com.example.app.jooq'
-                        directory   = 'src/main/java'
-                    }
-                }
+    configuration {
+        jdbc {
+            driver = 'org.postgresql.Driver'
+            url = dbUrl
+            user = dbUser
+            password = dbPassword
+        }
+        generator {
+            database {
+                name = 'org.jooq.meta.postgres.PostgresDatabase'
+                inputSchema = 'public'
+                includes = '.*'
+                excludes = 'flyway_schema_history'
+            }
+            generate {
+                deprecated = false
+                records = true
+                immutablePojos = false
+                fluentSetters = true
+            }
+            target {
+                packageName = 'com.example.app.infrastructure.jooq'
+                directory = 'src/main/java'
             }
         }
     }
 }
 
-// ensure spotless runs after codegen so generated files are formatted
+sourceSets {
+    main {
+        java {
+            srcDirs 'src/main/java'
+        }
+    }
+}
+
+spotless {
+    java {
+        targetExclude('**/jooq/**')
+    }
+}
+
+tasks.named('jooqCodegen') {
+    doLast {
+        def base = 'com/example/app/infrastructure/jooq'
+        [base, "${base}/tables", "${base}/tables/records"].each { pkg ->
+            def packageName = pkg.replace('/', '.')
+            def dir = file("src/main/java/${pkg}")
+            dir.mkdirs()
+            new File(dir, 'package-info.java').text =
+                "@SuppressWarnings(\"this-escape\")\npackage ${packageName};\n"
+        }
+    }
+}
+
+tasks.named('compileJava') {
+    dependsOn tasks.named('jooqCodegen')
+}
+
 tasks.named('spotlessJava') {
     dependsOn tasks.named('jooqCodegen')
 }
